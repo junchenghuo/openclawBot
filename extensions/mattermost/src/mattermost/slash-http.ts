@@ -6,6 +6,8 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import type { OpenClawConfig, ReplyPayload, RuntimeEnv } from "openclaw/plugin-sdk";
 import {
   createReplyPrefixOptions,
@@ -24,6 +26,7 @@ import {
   sendMattermostTyping,
   type MattermostChannel,
 } from "./client.js";
+import { resolveMattermostMediaLocalRoots } from "./media-local-roots.js";
 import {
   isMattermostSenderAllowed,
   normalizeMattermostAllowList,
@@ -530,6 +533,13 @@ async function handleSlashCommandAsync(params: {
       id: kind === "direct" ? senderId : channelId,
     },
   });
+  const stateDir =
+    core.state?.resolveStateDir?.(process.env) ?? path.join(os.homedir(), ".openclaw");
+  const mediaLocalRoots = resolveMattermostMediaLocalRoots({
+    cfg,
+    agentId: route.agentId,
+    stateDir,
+  });
 
   const fromLabel =
     kind === "direct"
@@ -615,6 +625,7 @@ async function handleSlashCommandAsync(params: {
             if (!chunk) continue;
             await sendMessageMattermost(to, chunk, {
               accountId: account.accountId,
+              mediaLocalRoots,
             });
           }
         } else {
@@ -625,6 +636,7 @@ async function handleSlashCommandAsync(params: {
             await sendMessageMattermost(to, caption, {
               accountId: account.accountId,
               mediaUrl,
+              mediaLocalRoots,
             });
           }
         }

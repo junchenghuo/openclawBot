@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import type {
   ChannelAccountSnapshot,
   ChatType,
@@ -42,22 +44,23 @@ import {
   type MattermostPost,
   type MattermostUser,
 } from "./client.js";
+import { resolveMattermostMediaLocalRoots } from "./media-local-roots.js";
 import { isMattermostSenderAllowed, normalizeMattermostAllowList } from "./monitor-auth.js";
 import {
   createDedupeCache,
   formatInboundFromLabel,
   resolveThreadSessionKeys,
 } from "./monitor-helpers.js";
+import {
+  detectMattermostMentionFlags,
+  shouldLeaderHandleUnmentionedMessage,
+} from "./monitor-mentions.js";
 import { resolveOncharPrefixes, stripOncharPrefix } from "./monitor-onchar.js";
 import {
   createMattermostConnectOnce,
   type MattermostEventPayload,
   type MattermostWebSocketFactory,
 } from "./monitor-websocket.js";
-import {
-  detectMattermostMentionFlags,
-  shouldLeaderHandleUnmentionedMessage,
-} from "./monitor-mentions.js";
 import { runWithReconnect } from "./reconnect.js";
 import { sendMessageMattermost } from "./send.js";
 import {
@@ -394,6 +397,8 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
   const channelCache = new Map<string, { value: MattermostChannel | null; expiresAt: number }>();
   const userCache = new Map<string, { value: MattermostUser | null; expiresAt: number }>();
   const logger = core.logging.getChildLogger({ module: "mattermost" });
+  const stateDir =
+    core.state?.resolveStateDir?.(process.env) ?? path.join(os.homedir(), ".openclaw");
   const logVerboseMessage = (message: string) => {
     if (!core.logging.shouldLogVerbose()) {
       return;
@@ -479,9 +484,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     await sendMattermostTyping(client, { channelId, parentId });
   };
 
-  const sendAckReactionIndicator = async (params: {
-    postId: string;
-  }): Promise<boolean> => {
+  const sendAckReactionIndicator = async (params: { postId: string }): Promise<boolean> => {
     for (let attempt = 1; attempt <= MATTERMOST_ACK_REACTION_MAX_RETRIES; attempt += 1) {
       try {
         await client.request<Record<string, unknown>>("/reactions", {
@@ -752,6 +755,11 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
         kind,
         id: kind === "direct" ? senderId : channelId,
       },
+    });
+    const mediaLocalRoots = resolveMattermostMediaLocalRoots({
+      cfg,
+      agentId: route.agentId,
+      stateDir,
     });
 
     const baseSessionKey = route.sessionKey;
@@ -1041,6 +1049,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
               await sendMessageMattermost(to, chunk, {
                 accountId: account.accountId,
                 replyToId: threadRootId,
+                mediaLocalRoots,
               });
             }
           } else {
@@ -1052,6 +1061,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
                 accountId: account.accountId,
                 mediaUrl,
                 replyToId: threadRootId,
+                mediaLocalRoots,
               });
             }
           }
