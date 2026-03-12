@@ -22,16 +22,9 @@
 
 ## 本次改进点（2026-03-12）
 
-- 新增 Mattermost 提及识别模块，区分普通提及与广播提及（`@all/@channel/@here`），避免误判。
-- 增加 Leader/PM 在群聊无显式提及时的兜底处理策略，保证委派消息不中断。
-- 增加消息收悉反应：机器人自动尝试添加 `:ok_hand:` 作为已读标识，并带失败重试与错误日志。
-- 新增 `monitor-mentions` 单测，覆盖提及识别、邮箱排除与 Leader 兜底路由规则。
-
-### 补充说明（第二次提交）
-
-- 增强 Slash 命令媒体发送链路：支持按 `mediaLocalRoots` 解析相对媒体路径，便于发送 `./output/im-files/*` 产物。
-- 在插件 SDK 的媒体加载层新增本地根目录解析与测试覆盖，降低跨目录执行时的路径不一致风险。
-- 保持 HTTP/远程媒体 URL 处理不变，确保新逻辑对既有线上路径兼容。
+- 为多角色协议文件补充 Mattermost 快速已读规则：收到消息先加 `:ok_hand:`，再回执 `已接单/done/blocked`。
+- 清理历史示例交付物（`projects/login-page-delivery` 与 `projects/common-ui-components` 下旧文档与图片），降低仓库冗余。
+- 保留并强化“Leader 统一调度、角色标准回执”的协作约束，便于后续任务编排与过程审计。
 
 ---
 
