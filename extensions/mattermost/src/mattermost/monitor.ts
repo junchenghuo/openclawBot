@@ -54,6 +54,10 @@ import {
   type MattermostEventPayload,
   type MattermostWebSocketFactory,
 } from "./monitor-websocket.js";
+import {
+  detectMattermostMentionFlags,
+  shouldLeaderHandleUnmentionedMessage,
+} from "./monitor-mentions.js";
 import { runWithReconnect } from "./reconnect.js";
 import { sendMessageMattermost } from "./send.js";
 import {
@@ -94,6 +98,8 @@ const RECENT_MATTERMOST_MESSAGE_MAX = 2000;
 const CHANNEL_CACHE_TTL_MS = 5 * 60_000;
 const USER_CACHE_TTL_MS = 10 * 60_000;
 const RATE_LIMIT_AUTO_REPLY_TEXT = "⚠️ API rate limit reached. Please try again later.";
+const MATTERMOST_ACK_REACTION_FALLBACK = "ok_hand";
+const MATTERMOST_ACK_REACTION_MAX_RETRIES = 2;
 
 const recentInboundMessages = createDedupeCache({
   ttlMs: RECENT_MATTERMOST_MESSAGE_TTL_MS,
@@ -473,6 +479,38 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     await sendMattermostTyping(client, { channelId, parentId });
   };
 
+  const sendAckReactionIndicator = async (params: {
+    postId: string;
+  }): Promise<boolean> => {
+    for (let attempt = 1; attempt <= MATTERMOST_ACK_REACTION_MAX_RETRIES; attempt += 1) {
+      try {
+        await client.request<Record<string, unknown>>("/reactions", {
+          method: "POST",
+          body: JSON.stringify({
+            user_id: botUserId,
+            post_id: params.postId,
+            emoji_name: MATTERMOST_ACK_REACTION_FALLBACK,
+          }),
+        });
+        return true;
+      } catch (err) {
+        const message = String(err);
+        if (/already exists/i.test(message)) {
+          return true;
+        }
+        if (attempt < MATTERMOST_ACK_REACTION_MAX_RETRIES) {
+          continue;
+        }
+        runtime.error?.(
+          `mattermost: failed to add ack reaction :${MATTERMOST_ACK_REACTION_FALLBACK}: on post ${params.postId} after ${MATTERMOST_ACK_REACTION_MAX_RETRIES} attempts: ${message}`,
+        );
+        return false;
+      }
+    }
+
+    return false;
+  };
+
   const resolveChannelInfo = async (channelId: string): Promise<MattermostChannel | null> => {
     const cached = channelCache.get(channelId);
     if (cached && cached.expiresAt > Date.now()) {
@@ -727,6 +765,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     const historyKey = kind === "direct" ? null : sessionKey;
 
     const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, route.agentId);
+    const mentionFlags = detectMattermostMentionFlags(rawText);
     const wasMentioned =
       kind !== "direct" &&
       ((botUsername ? rawText.toLowerCase().includes(`@${botUsername.toLowerCase()}`) : false) ||
@@ -772,10 +811,27 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
       });
     const shouldBypassMention =
       isControlCommand && shouldRequireMention && !wasMentioned && commandAuthorized;
-    const effectiveWasMentioned = wasMentioned || shouldBypassMention || oncharTriggered;
+    const leaderFallbackMention = shouldLeaderHandleUnmentionedMessage({
+      isGroup: kind !== "direct",
+      routeAgentId: route.agentId,
+      accountId: account.accountId,
+      hasAnyMention: mentionFlags.hasAnyMention,
+    });
+    const effectiveWasMentioned =
+      wasMentioned ||
+      mentionFlags.hasBroadcastMention ||
+      shouldBypassMention ||
+      oncharTriggered ||
+      leaderFallbackMention;
     const canDetectMention = Boolean(botUsername) || mentionRegexes.length > 0;
 
-    if (oncharEnabled && !oncharTriggered && !wasMentioned && !isControlCommand) {
+    if (
+      oncharEnabled &&
+      !oncharTriggered &&
+      !wasMentioned &&
+      !mentionFlags.hasBroadcastMention &&
+      !isControlCommand
+    ) {
       recordPendingHistory();
       return;
     }
@@ -786,6 +842,13 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
         return;
       }
     }
+    const to = kind === "direct" ? `user:${senderId}` : `channel:${channelId}`;
+    const ackPromise = post.id
+      ? sendAckReactionIndicator({
+          postId: post.id,
+        })
+      : Promise.resolve(false);
+
     const mediaList = await resolveMattermostMedia(post.file_ids);
     const mediaPlaceholder = buildMattermostAttachmentPlaceholder(mediaList);
     const bodySource = oncharTriggered ? oncharResult.stripped : rawText;
@@ -794,6 +857,8 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     if (!bodyText) {
       return;
     }
+
+    await ackPromise;
 
     core.channel.activity.record({
       channel: "mattermost",
@@ -850,7 +915,6 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
       });
     }
 
-    const to = kind === "direct" ? `user:${senderId}` : `channel:${channelId}`;
     const mediaPayload = buildAgentMediaPayload(mediaList);
     const commandBody = rawText.trim();
     const inboundHistory =
