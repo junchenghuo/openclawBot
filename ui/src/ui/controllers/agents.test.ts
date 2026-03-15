@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { clearAgentMemory, loadToolsCatalog } from "./agents.ts";
+import { clearAgentMemory, clearAllAgentsMemory, loadToolsCatalog } from "./agents.ts";
 import type { AgentsState } from "./agents.ts";
 
 function createState(): { state: AgentsState; request: ReturnType<typeof vi.fn> } {
@@ -75,6 +75,25 @@ describe("clearAgentMemory", () => {
     const result = await clearAgentMemory(state, "pm");
 
     expect(request).toHaveBeenCalledWith("agents.memory.clear", { agentId: "pm" });
+    expect(result).toEqual(payload);
+  });
+});
+
+describe("clearAllAgentsMemory", () => {
+  it("calls agents.memory.clearAll and returns payload", async () => {
+    const { state, request } = createState();
+    const payload = {
+      ok: true as const,
+      clearedAgents: 9,
+      deletedSessions: 42,
+      deletedTranscriptFiles: 11,
+      archivedTranscriptFiles: 31,
+    };
+    request.mockResolvedValue(payload);
+
+    const result = await clearAllAgentsMemory(state);
+
+    expect(request).toHaveBeenCalledWith("agents.memory.clearAll", {});
     expect(result).toEqual(payload);
   });
 });

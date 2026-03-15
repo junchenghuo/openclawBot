@@ -8,7 +8,7 @@ import type { AppViewState } from "./app-view-state.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
-import { clearAgentMemory, loadAgents, loadToolsCatalog } from "./controllers/agents.ts";
+import { clearAgentMemory, clearAllAgentsMemory, loadAgents, loadToolsCatalog } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
@@ -574,7 +574,9 @@ export function renderApp(state: AppViewState) {
                 toolsCatalogError: state.toolsCatalogError,
                 toolsCatalogResult: state.toolsCatalogResult,
                 memoryClearing: state.agentMemoryClearing,
+                allMemoryClearing: state.allAgentsMemoryClearing,
                 memoryClearError: state.agentMemoryClearError,
+                memoryClearSuccess: state.agentMemoryClearSuccess,
                 skillsFilter: state.skillsFilter,
                 onRefresh: async () => {
                   await loadAgents(state);
@@ -594,6 +596,7 @@ export function renderApp(state: AppViewState) {
                     return;
                   }
                   state.agentMemoryClearError = null;
+                  state.agentMemoryClearSuccess = null;
                   state.agentsSelectedId = agentId;
                   state.agentFilesList = null;
                   state.agentFilesError = null;
@@ -812,7 +815,7 @@ export function renderApp(state: AppViewState) {
                   updateConfigFormValue(state, ["agents", "list", index, "skills"], []);
                 },
                 onClearMemory: (agentId) => {
-                  if (state.agentMemoryClearing) {
+                  if (state.agentMemoryClearing || state.allAgentsMemoryClearing) {
                     return;
                   }
                   const confirmed = window.confirm(
@@ -823,8 +826,11 @@ export function renderApp(state: AppViewState) {
                   }
                   state.agentMemoryClearing = true;
                   state.agentMemoryClearError = null;
+                  state.agentMemoryClearSuccess = null;
                   void clearAgentMemory(state, agentId)
-                    .then(async () => {
+                    .then(async (result) => {
+                      state.agentMemoryClearSuccess =
+                        `删除成功：${result.agentId}，清理 ${result.deletedSessions} 个会话。`;
                       await loadAgents(state);
                     })
                     .catch((err) => {
@@ -832,6 +838,32 @@ export function renderApp(state: AppViewState) {
                     })
                     .finally(() => {
                       state.agentMemoryClearing = false;
+                    });
+                },
+                onClearAllMemory: () => {
+                  if (state.agentMemoryClearing || state.allAgentsMemoryClearing) {
+                    return;
+                  }
+                  const confirmed = window.confirm(
+                    "Delete all saved memory for ALL agents?\n\nThis will clear session mappings and transcript history for every configured agent.",
+                  );
+                  if (!confirmed) {
+                    return;
+                  }
+                  state.allAgentsMemoryClearing = true;
+                  state.agentMemoryClearError = null;
+                  state.agentMemoryClearSuccess = null;
+                  void clearAllAgentsMemory(state)
+                    .then(async (result) => {
+                      state.agentMemoryClearSuccess =
+                        `删除成功：已清理 ${result.clearedAgents} 个机器人，共 ${result.deletedSessions} 个会话。`;
+                      await loadAgents(state);
+                    })
+                    .catch((err) => {
+                      state.agentMemoryClearError = String(err);
+                    })
+                    .finally(() => {
+                      state.allAgentsMemoryClearing = false;
                     });
                 },
                 onModelChange: (agentId, modelId) => {

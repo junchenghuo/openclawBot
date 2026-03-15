@@ -32,6 +32,12 @@
 - 扩展网关协议与方法权限：新增 `agents-models-skills` 相关 schema 与方法暴露，完善服务端 mutate 校验测试。
 - 更新 UI 代理管理视图：同步 controller/types/view 渲染链路，支持新的技能工作区结构展示。
 
+## 本次改进点（2026-03-16）
+
+- 扩展网关 Agent 管理能力：继续完善 `agents` 相关方法的 schema 与作用域映射，补强服务端参数校验。
+- 优化 UI Agent 页面状态流：更新 `app-view-state` 与 agents controller/view 的联动，减少刷新与切换时的状态抖动。
+- 补充关键回归测试：强化 `agents-mutate` 与 UI controller 测试覆盖，保证新增交互路径稳定。
+
 ---
 
 ## 项目定位

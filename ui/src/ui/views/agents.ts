@@ -67,7 +67,9 @@ export type AgentsProps = {
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;
   memoryClearing: boolean;
+  allMemoryClearing: boolean;
   memoryClearError: string | null;
+  memoryClearSuccess: string | null;
   skillsFilter: string;
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
@@ -91,6 +93,7 @@ export type AgentsProps = {
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
   onClearMemory: (agentId: string) => void;
+  onClearAllMemory: () => void;
 };
 
 export type AgentContext = {
@@ -120,6 +123,15 @@ export function renderAgents(props: AgentsProps) {
           </div>
           <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
             ${props.loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
+        <div class="row" style="margin-top: 10px; gap: 8px;">
+          <button
+            class="btn btn--sm danger"
+            ?disabled=${props.allMemoryClearing || props.memoryClearing || agents.length === 0}
+            @click=${props.onClearAllMemory}
+          >
+            ${props.allMemoryClearing ? "Deleting…" : "Delete All Memories"}
           </button>
         </div>
         ${
@@ -171,6 +183,7 @@ export function renderAgents(props: AgentsProps) {
                   {
                     memoryClearing: props.memoryClearing,
                     memoryClearError: props.memoryClearError,
+                    memoryClearSuccess: props.memoryClearSuccess,
                     onClearMemory: props.onClearMemory,
                   },
                 )}
@@ -307,6 +320,7 @@ function renderAgentHeader(
   actions: {
     memoryClearing: boolean;
     memoryClearError: string | null;
+    memoryClearSuccess: string | null;
     onClearMemory: (agentId: string) => void;
   },
 ) {
@@ -336,6 +350,9 @@ function renderAgentHeader(
       </div>
       ${actions.memoryClearError
         ? html`<div class="callout danger" style="margin-top: 12px;">${actions.memoryClearError}</div>`
+        : nothing}
+      ${actions.memoryClearSuccess
+        ? html`<div class="callout success" style="margin-top: 12px;">${actions.memoryClearSuccess}</div>`
         : nothing}
     </section>
   `;

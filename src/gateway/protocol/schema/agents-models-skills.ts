@@ -118,6 +118,19 @@ export const AgentsMemoryClearResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const AgentsMemoryClearAllParamsSchema = Type.Object({}, { additionalProperties: false });
+
+export const AgentsMemoryClearAllResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    clearedAgents: Type.Integer({ minimum: 0 }),
+    deletedSessions: Type.Integer({ minimum: 0 }),
+    deletedTranscriptFiles: Type.Integer({ minimum: 0 }),
+    archivedTranscriptFiles: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
 export const AgentsFileEntrySchema = Type.Object(
   {
     name: NonEmptyString,

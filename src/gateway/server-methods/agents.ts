@@ -39,6 +39,7 @@ import { resolveUserPath } from "../../utils.js";
 import {
   ErrorCodes,
   errorShape,
+  validateAgentsMemoryClearAllParams,
   validateAgentsMemoryClearParams,
   formatValidationErrors,
   validateAgentsCreateParams,
@@ -726,6 +727,42 @@ export const agentsHandlers: GatewayRequestHandlers = {
         deletedSessions: cleared.deletedSessions,
         deletedTranscriptFiles: cleared.deletedTranscriptFiles,
         archivedTranscriptFiles: cleared.archivedTranscriptFiles,
+      },
+      undefined,
+    );
+  },
+  "agents.memory.clearAll": async ({ params, respond }) => {
+    if (!validateAgentsMemoryClearAllParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "agents.memory.clearAll",
+        validateAgentsMemoryClearAllParams.errors,
+      );
+      return;
+    }
+
+    const cfg = loadConfig();
+    const agentIds = listAgentEntries(cfg).map((entry) => entry.id).filter(Boolean);
+
+    let deletedSessions = 0;
+    let deletedTranscriptFiles = 0;
+    let archivedTranscriptFiles = 0;
+
+    for (const agentId of agentIds) {
+      const cleared = await clearAgentSessionsMemory({ cfg, agentId });
+      deletedSessions += cleared.deletedSessions;
+      deletedTranscriptFiles += cleared.deletedTranscriptFiles;
+      archivedTranscriptFiles += cleared.archivedTranscriptFiles;
+    }
+
+    respond(
+      true,
+      {
+        ok: true,
+        clearedAgents: agentIds.length,
+        deletedSessions,
+        deletedTranscriptFiles,
+        archivedTranscriptFiles,
       },
       undefined,
     );

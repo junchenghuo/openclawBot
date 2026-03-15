@@ -337,6 +337,14 @@ export type AgentsMemoryClearResult = {
   archivedTranscriptFiles: number;
 };
 
+export type AgentsMemoryClearAllResult = {
+  ok: true;
+  clearedAgents: number;
+  deletedSessions: number;
+  deletedTranscriptFiles: number;
+  archivedTranscriptFiles: number;
+};
+
 export type ToolCatalogProfile = {
   id: "minimal" | "coding" | "messaging" | "full";
   label: string;

@@ -12,6 +12,10 @@ import {
   AgentSummarySchema,
   type AgentsFileEntry,
   AgentsFileEntrySchema,
+  type AgentsMemoryClearAllParams,
+  AgentsMemoryClearAllParamsSchema,
+  type AgentsMemoryClearAllResult,
+  AgentsMemoryClearAllResultSchema,
   type AgentsMemoryClearParams,
   AgentsMemoryClearParamsSchema,
   type AgentsMemoryClearResult,
@@ -258,6 +262,9 @@ export const validateAgentIdentityParams =
 export const validateAgentWaitParams = ajv.compile<AgentWaitParams>(AgentWaitParamsSchema);
 export const validateWakeParams = ajv.compile<WakeParams>(WakeParamsSchema);
 export const validateAgentsListParams = ajv.compile<AgentsListParams>(AgentsListParamsSchema);
+export const validateAgentsMemoryClearAllParams = ajv.compile<AgentsMemoryClearAllParams>(
+  AgentsMemoryClearAllParamsSchema,
+);
 export const validateAgentsMemoryClearParams = ajv.compile<AgentsMemoryClearParams>(
   AgentsMemoryClearParamsSchema,
 );

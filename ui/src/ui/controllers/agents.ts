@@ -1,5 +1,10 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { AgentsListResult, AgentsMemoryClearResult, ToolsCatalogResult } from "../types.ts";
+import type {
+  AgentsListResult,
+  AgentsMemoryClearAllResult,
+  AgentsMemoryClearResult,
+  ToolsCatalogResult,
+} from "../types.ts";
 
 export type AgentsState = {
   client: GatewayBrowserClient | null;
@@ -71,4 +76,11 @@ export async function clearAgentMemory(
     throw new Error("gateway not connected");
   }
   return await state.client.request<AgentsMemoryClearResult>("agents.memory.clear", { agentId });
+}
+
+export async function clearAllAgentsMemory(state: AgentsState): Promise<AgentsMemoryClearAllResult> {
+  if (!state.client || !state.connected) {
+    throw new Error("gateway not connected");
+  }
+  return await state.client.request<AgentsMemoryClearAllResult>("agents.memory.clearAll", {});
 }

@@ -131,6 +131,10 @@ export type AppViewState = {
   toolsCatalogLoading: boolean;
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;
+  agentMemoryClearing: boolean;
+  allAgentsMemoryClearing: boolean;
+  agentMemoryClearError: string | null;
+  agentMemoryClearSuccess: string | null;
   agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
   agentFilesLoading: boolean;
   agentFilesError: string | null;

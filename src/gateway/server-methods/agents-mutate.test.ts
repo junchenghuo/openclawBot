@@ -569,6 +569,53 @@ describe("agents.memory.clear", () => {
   });
 });
 
+describe("agents.memory.clearAll", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadConfigReturn = {};
+    mocks.listAgentEntries.mockReturnValue([{ id: "main" }, { id: "pm" }]);
+    mocks.fsReadFile.mockResolvedValue(JSON.stringify({ "agent:any": { sessionId: "s1" } }));
+    mocks.fsReaddir.mockResolvedValue(["s1.jsonl", "sessions.json"]);
+
+    mocks.fsStat.mockImplementation(async (...args: unknown[]) => {
+      const p = typeof args[0] === "string" ? args[0] : "";
+      if (p.endsWith("sessions.json") || p.endsWith(".jsonl") || p.includes(".deleted.")) {
+        return makeFileStat({ size: 42 });
+      }
+      throw createEnoentError();
+    });
+  });
+
+  it("clears memory for all configured agents", async () => {
+    const { respond, promise } = makeCall("agents.memory.clearAll", {});
+    await promise;
+
+    expect(mocks.saveSessionStore).toHaveBeenCalledTimes(2);
+    expect(mocks.fsRename).toHaveBeenCalledTimes(2);
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        ok: true,
+        clearedAgents: 2,
+        deletedSessions: expect.any(Number),
+      }),
+      undefined,
+    );
+  });
+
+  it("rejects invalid params", async () => {
+    const { respond, promise } = makeCall("agents.memory.clearAll", { unexpected: true });
+    await promise;
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: expect.stringContaining("invalid agents.memory.clearAll"),
+      }),
+    );
+  });
+});
+
 describe("agents.files.list", () => {
   beforeEach(() => {
     vi.clearAllMocks();

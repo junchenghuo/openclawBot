@@ -11,6 +11,8 @@ import {
 } from "./agent.js";
 import {
   AgentSummarySchema,
+  AgentsMemoryClearAllParamsSchema,
+  AgentsMemoryClearAllResultSchema,
   AgentsMemoryClearParamsSchema,
   AgentsMemoryClearResultSchema,
   AgentsCreateParamsSchema,
@@ -222,6 +224,8 @@ export const ProtocolSchemas = {
   WebLoginStartParams: WebLoginStartParamsSchema,
   WebLoginWaitParams: WebLoginWaitParamsSchema,
   AgentSummary: AgentSummarySchema,
+  AgentsMemoryClearAllParams: AgentsMemoryClearAllParamsSchema,
+  AgentsMemoryClearAllResult: AgentsMemoryClearAllResultSchema,
   AgentsMemoryClearParams: AgentsMemoryClearParamsSchema,
   AgentsMemoryClearResult: AgentsMemoryClearResultSchema,
   AgentsCreateParams: AgentsCreateParamsSchema,
