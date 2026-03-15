@@ -26,6 +26,12 @@
 - 清理历史示例交付物（`projects/login-page-delivery` 与 `projects/common-ui-components` 下旧文档与图片），降低仓库冗余。
 - 保留并强化“Leader 统一调度、角色标准回执”的协作约束，便于后续任务编排与过程审计。
 
+## 本次改进点（2026-03-15）
+
+- 重构技能目录解析逻辑：统一按工作区技能源加载，移除旧的 `skills.agents-skills-directory` 测试路径并补齐迁移覆盖。
+- 扩展网关协议与方法权限：新增 `agents-models-skills` 相关 schema 与方法暴露，完善服务端 mutate 校验测试。
+- 更新 UI 代理管理视图：同步 controller/types/view 渲染链路，支持新的技能工作区结构展示。
+
 ---
 
 ## 项目定位

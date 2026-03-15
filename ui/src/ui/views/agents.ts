@@ -66,6 +66,8 @@ export type AgentsProps = {
   toolsCatalogLoading: boolean;
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;
+  memoryClearing: boolean;
+  memoryClearError: string | null;
   skillsFilter: string;
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
@@ -88,6 +90,7 @@ export type AgentsProps = {
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
+  onClearMemory: (agentId: string) => void;
 };
 
 export type AgentContext = {
@@ -165,6 +168,11 @@ export function renderAgents(props: AgentsProps) {
                   selectedAgent,
                   defaultId,
                   props.agentIdentityById[selectedAgent.id] ?? null,
+                  {
+                    memoryClearing: props.memoryClearing,
+                    memoryClearError: props.memoryClearError,
+                    onClearMemory: props.onClearMemory,
+                  },
                 )}
                 ${renderAgentTabs(props.activePanel, (panel) => props.onSelectPanel(panel))}
                 ${
@@ -296,6 +304,11 @@ function renderAgentHeader(
   agent: AgentsListResult["agents"][number],
   defaultId: string | null,
   agentIdentity: AgentIdentityResult | null,
+  actions: {
+    memoryClearing: boolean;
+    memoryClearError: string | null;
+    onClearMemory: (agentId: string) => void;
+  },
 ) {
   const badge = agentBadgeText(agent.id, defaultId);
   const displayName = normalizeAgentLabel(agent);
@@ -313,7 +326,17 @@ function renderAgentHeader(
       <div class="agent-header-meta">
         <div class="mono">${agent.id}</div>
         ${badge ? html`<span class="agent-pill">${badge}</span>` : nothing}
+        <button
+          class="btn btn--sm danger"
+          ?disabled=${actions.memoryClearing}
+          @click=${() => actions.onClearMemory(agent.id)}
+        >
+          ${actions.memoryClearing ? "Deleting…" : "Delete Memory"}
+        </button>
       </div>
+      ${actions.memoryClearError
+        ? html`<div class="callout danger" style="margin-top: 12px;">${actions.memoryClearError}</div>`
+        : nothing}
     </section>
   `;
 }

@@ -226,6 +226,7 @@ function loadSkillEntries(
     bundledSkillsDir?: string;
   },
 ): SkillEntry[] {
+  migrateLegacyProjectSkillsDir(workspaceDir);
   const limits = resolveSkillsLimits(opts?.config);
 
   const loadSkills = (params: { dir: string; source: string }): Skill[] => {
@@ -351,23 +352,13 @@ function loadSkillEntries(
     dir: managedSkillsDir,
     source: "openclaw-managed",
   });
-  const personalAgentsSkillsDir = path.resolve(os.homedir(), ".agents", "skills");
-  const personalAgentsSkills = loadSkills({
-    dir: personalAgentsSkillsDir,
-    source: "agents-skills-personal",
-  });
-  const projectAgentsSkillsDir = path.resolve(workspaceDir, ".agents", "skills");
-  const projectAgentsSkills = loadSkills({
-    dir: projectAgentsSkillsDir,
-    source: "agents-skills-project",
-  });
   const workspaceSkills = loadSkills({
     dir: workspaceSkillsDir,
     source: "openclaw-workspace",
   });
 
   const merged = new Map<string, Skill>();
-  // Precedence: extra < bundled < managed < agents-skills-personal < agents-skills-project < workspace
+  // Precedence: extra < bundled < managed < workspace
   for (const skill of extraSkills) {
     merged.set(skill.name, skill);
   }
@@ -375,12 +366,6 @@ function loadSkillEntries(
     merged.set(skill.name, skill);
   }
   for (const skill of managedSkills) {
-    merged.set(skill.name, skill);
-  }
-  for (const skill of personalAgentsSkills) {
-    merged.set(skill.name, skill);
-  }
-  for (const skill of projectAgentsSkills) {
     merged.set(skill.name, skill);
   }
   for (const skill of workspaceSkills) {
@@ -403,6 +388,55 @@ function loadSkillEntries(
     };
   });
   return skillEntries;
+}
+
+function migrateLegacyProjectSkillsDir(workspaceDir: string): void {
+  const legacySkillsDir = path.resolve(workspaceDir, ".agents", "skills");
+  let legacyStats: fs.Stats;
+  try {
+    legacyStats = fs.statSync(legacySkillsDir);
+  } catch {
+    return;
+  }
+  if (!legacyStats.isDirectory()) {
+    return;
+  }
+
+  const workspaceSkillsDir = path.resolve(workspaceDir, "skills");
+  try {
+    fs.mkdirSync(workspaceSkillsDir, { recursive: true });
+    const entries = fs.readdirSync(legacySkillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const src = path.join(legacySkillsDir, entry.name);
+      const dest = path.join(workspaceSkillsDir, entry.name);
+      if (fs.existsSync(dest)) {
+        continue;
+      }
+      fs.cpSync(src, dest, {
+        recursive: true,
+        force: false,
+        errorOnExist: false,
+      });
+    }
+    fs.rmSync(legacySkillsDir, { recursive: true, force: true });
+    const legacyAgentsDir = path.join(workspaceDir, ".agents");
+    try {
+      const remaining = fs.readdirSync(legacyAgentsDir);
+      if (remaining.length === 0) {
+        fs.rmdirSync(legacyAgentsDir);
+      }
+    } catch {
+      // Ignore cleanup errors; migration already succeeded.
+    }
+    skillsLogger.info(
+      `Migrated legacy skills from ${legacySkillsDir} to ${workspaceSkillsDir} and removed legacy directory.`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    skillsLogger.warn(
+      `Failed to migrate legacy skills from ${legacySkillsDir} to ${workspaceSkillsDir}: ${message}`,
+    );
+  }
 }
 
 function applySkillsPromptLimits(params: { skills: Skill[]; config?: OpenClawConfig }): {

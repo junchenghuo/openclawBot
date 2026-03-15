@@ -40,6 +40,7 @@ const BASE_METHODS = [
   "agents.create",
   "agents.update",
   "agents.delete",
+  "agents.memory.clear",
   "agents.files.list",
   "agents.files.get",
   "agents.files.set",

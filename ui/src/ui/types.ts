@@ -329,6 +329,14 @@ export type AgentsListResult = {
   agents: GatewayAgentRow[];
 };
 
+export type AgentsMemoryClearResult = {
+  ok: true;
+  agentId: string;
+  deletedSessions: number;
+  deletedTranscriptFiles: number;
+  archivedTranscriptFiles: number;
+};
+
 export type ToolCatalogProfile = {
   id: "minimal" | "coding" | "messaging" | "full";
   label: string;

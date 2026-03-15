@@ -26,6 +26,9 @@ import {
   pruneAgentConfig,
 } from "../../commands/agents.config.js";
 import { loadConfig, writeConfigFile } from "../../config/config.js";
+import { formatSessionArchiveTimestamp } from "../../config/sessions/artifacts.js";
+import { resolveStorePath } from "../../config/sessions/paths.js";
+import { saveSessionStore } from "../../config/sessions/store.js";
 import { resolveSessionTranscriptsDirForAgent } from "../../config/sessions/paths.js";
 import { sameFileIdentity } from "../../infra/file-identity.js";
 import { SafeOpenError, readLocalFileSafely, writeFileWithinRoot } from "../../infra/fs-safe.js";
@@ -36,6 +39,7 @@ import { resolveUserPath } from "../../utils.js";
 import {
   ErrorCodes,
   errorShape,
+  validateAgentsMemoryClearParams,
   formatValidationErrors,
   validateAgentsCreateParams,
   validateAgentsDeleteParams,
@@ -404,6 +408,74 @@ async function moveToTrashBestEffort(pathname: string): Promise<void> {
   }
 }
 
+async function clearAgentSessionsMemory(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  agentId: string;
+}): Promise<{
+  deletedSessions: number;
+  deletedTranscriptFiles: number;
+  archivedTranscriptFiles: number;
+}> {
+  const sessionsDir = resolveSessionTranscriptsDirForAgent(params.agentId);
+  const storePath = resolveStorePath(params.cfg.session?.store, { agentId: params.agentId });
+  const archiveStamp = formatSessionArchiveTimestamp();
+
+  const rawStore = await fs.readFile(storePath, "utf-8").catch(() => null);
+  const parsedStore = (() => {
+    if (!rawStore) {
+      return {} as Record<string, unknown>;
+    }
+    try {
+      const parsed = JSON.parse(rawStore) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {} as Record<string, unknown>;
+    }
+  })();
+
+  const deletedSessions = Object.keys(parsedStore).length;
+  await saveSessionStore(storePath, {});
+
+  let deletedTranscriptFiles = 0;
+  let archivedTranscriptFiles = 0;
+  const entries = await fs.readdir(sessionsDir).catch(() => [] as string[]);
+  for (const name of entries) {
+    if (name === "sessions.json") {
+      continue;
+    }
+    const fullPath = path.join(sessionsDir, name);
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
+    try {
+      stat = await fs.stat(fullPath);
+    } catch {
+      continue;
+    }
+    if (!stat.isFile()) {
+      continue;
+    }
+    if (name.endsWith(".jsonl")) {
+      const archivedPath = `${fullPath}.deleted.${archiveStamp}`;
+      try {
+        await fs.rename(fullPath, archivedPath);
+        archivedTranscriptFiles += 1;
+      } catch {
+        // Best-effort fallback.
+        await fs.rm(fullPath, { force: true }).catch(() => undefined);
+        deletedTranscriptFiles += 1;
+      }
+      continue;
+    }
+    if (name.includes(".deleted.") || name.includes(".reset.") || name.includes(".bak.")) {
+      await fs.rm(fullPath, { force: true }).catch(() => undefined);
+      deletedTranscriptFiles += 1;
+    }
+  }
+
+  return { deletedSessions, deletedTranscriptFiles, archivedTranscriptFiles };
+}
+
 function respondWorkspaceFileInvalid(respond: RespondFn, name: string, reason: string): void {
   respond(
     false,
@@ -629,6 +701,34 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     respond(true, { ok: true, agentId, removedBindings: result.removedBindings }, undefined);
+  },
+  "agents.memory.clear": async ({ params, respond }) => {
+    if (!validateAgentsMemoryClearParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "agents.memory.clear",
+        validateAgentsMemoryClearParams.errors,
+      );
+      return;
+    }
+    const cfg = loadConfig();
+    const agentId = resolveAgentIdOrError(String(params.agentId ?? ""), cfg);
+    if (!agentId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown agent id"));
+      return;
+    }
+    const cleared = await clearAgentSessionsMemory({ cfg, agentId });
+    respond(
+      true,
+      {
+        ok: true,
+        agentId,
+        deletedSessions: cleared.deletedSessions,
+        deletedTranscriptFiles: cleared.deletedTranscriptFiles,
+        archivedTranscriptFiles: cleared.archivedTranscriptFiles,
+      },
+      undefined,
+    );
   },
   "agents.files.list": async ({ params, respond }) => {
     if (!validateAgentsFilesListParams(params)) {

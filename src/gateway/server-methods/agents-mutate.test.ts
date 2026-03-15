@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   resolveAgentDir: vi.fn(() => "/agents/test-agent"),
   resolveAgentWorkspaceDir: vi.fn(() => "/workspace/test-agent"),
   resolveSessionTranscriptsDirForAgent: vi.fn(() => "/transcripts/test-agent"),
+  saveSessionStore: vi.fn(async () => {}),
   listAgentsForGateway: vi.fn(() => ({
     defaultId: "main",
     mainKey: "agent:main:main",
@@ -27,6 +28,10 @@ const mocks = vi.hoisted(() => ({
   fsMkdir: vi.fn(async () => undefined),
   fsAppendFile: vi.fn(async () => {}),
   fsReadFile: vi.fn(async () => ""),
+  fsWriteFile: vi.fn(async () => {}),
+  fsReaddir: vi.fn(async () => [] as string[]),
+  fsRename: vi.fn(async () => {}),
+  fsRm: vi.fn(async () => {}),
   fsStat: vi.fn(async (..._args: unknown[]) => null as import("node:fs").Stats | null),
   fsLstat: vi.fn(async (..._args: unknown[]) => null as import("node:fs").Stats | null),
   fsRealpath: vi.fn(async (p: string) => p),
@@ -63,6 +68,12 @@ vi.mock("../../agents/workspace.js", async () => {
 
 vi.mock("../../config/sessions/paths.js", () => ({
   resolveSessionTranscriptsDirForAgent: mocks.resolveSessionTranscriptsDirForAgent,
+  resolveStorePath: (_store?: string, _opts?: { agentId?: string }) =>
+    "/transcripts/test-agent/sessions.json",
+}));
+
+vi.mock("../../config/sessions/store.js", () => ({
+  saveSessionStore: mocks.saveSessionStore,
 }));
 
 vi.mock("../../browser/trash.js", () => ({
@@ -88,6 +99,10 @@ vi.mock("node:fs/promises", async () => {
     mkdir: mocks.fsMkdir,
     appendFile: mocks.fsAppendFile,
     readFile: mocks.fsReadFile,
+    writeFile: mocks.fsWriteFile,
+    readdir: mocks.fsReaddir,
+    rename: mocks.fsRename,
+    rm: mocks.fsRm,
     stat: mocks.fsStat,
     lstat: mocks.fsLstat,
     realpath: mocks.fsRealpath,
@@ -487,6 +502,69 @@ describe("agents.delete", () => {
       false,
       undefined,
       expect.objectContaining({ message: expect.stringContaining("invalid") }),
+    );
+  });
+});
+
+describe("agents.memory.clear", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadConfigReturn = {};
+    mocks.findAgentEntryIndex.mockReturnValue(0);
+    mocks.fsReadFile.mockResolvedValue(
+      JSON.stringify({
+        "agent:pm:main": { sessionId: "s1" },
+        "agent:pm:mattermost:channel:test": { sessionId: "s2" },
+      }),
+    );
+    mocks.fsReaddir.mockResolvedValue([
+      "s1.jsonl",
+      "s2.jsonl",
+      "s2.jsonl.deleted.2026-03-14T00-00-00.000Z",
+      "sessions.json",
+    ]);
+    mocks.fsStat.mockImplementation(async (...args: unknown[]) => {
+      const p = typeof args[0] === "string" ? args[0] : "";
+      if (p.endsWith("sessions.json")) {
+        return makeFileStat({ size: 2 });
+      }
+      if (p.endsWith(".jsonl") || p.includes(".deleted.")) {
+        return makeFileStat({ size: 42 });
+      }
+      throw createEnoentError();
+    });
+  });
+
+  it("clears session map and transcript files for selected agent", async () => {
+    const { respond, promise } = makeCall("agents.memory.clear", { agentId: "main" });
+    await promise;
+
+    expect(mocks.saveSessionStore).toHaveBeenCalledWith(expect.any(String), {});
+    expect(mocks.fsRename).toHaveBeenCalledTimes(2);
+    expect(mocks.fsRm).toHaveBeenCalledWith(
+      expect.stringContaining(".deleted.2026-03-14T00-00-00.000Z"),
+      { force: true },
+    );
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        ok: true,
+        agentId: "main",
+        deletedSessions: 2,
+        archivedTranscriptFiles: 2,
+        deletedTranscriptFiles: 1,
+      }),
+      undefined,
+    );
+  });
+
+  it("rejects invalid params", async () => {
+    const { respond, promise } = makeCall("agents.memory.clear", {});
+    await promise;
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({ message: expect.stringContaining("invalid agents.memory.clear") }),
     );
   });
 });

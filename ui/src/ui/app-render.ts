@@ -8,7 +8,7 @@ import type { AppViewState } from "./app-view-state.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
-import { loadAgents, loadToolsCatalog } from "./controllers/agents.ts";
+import { clearAgentMemory, loadAgents, loadToolsCatalog } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
@@ -573,6 +573,8 @@ export function renderApp(state: AppViewState) {
                 toolsCatalogLoading: state.toolsCatalogLoading,
                 toolsCatalogError: state.toolsCatalogError,
                 toolsCatalogResult: state.toolsCatalogResult,
+                memoryClearing: state.agentMemoryClearing,
+                memoryClearError: state.agentMemoryClearError,
                 skillsFilter: state.skillsFilter,
                 onRefresh: async () => {
                   await loadAgents(state);
@@ -591,6 +593,7 @@ export function renderApp(state: AppViewState) {
                   if (state.agentsSelectedId === agentId) {
                     return;
                   }
+                  state.agentMemoryClearError = null;
                   state.agentsSelectedId = agentId;
                   state.agentFilesList = null;
                   state.agentFilesError = null;
@@ -807,6 +810,29 @@ export function renderApp(state: AppViewState) {
                     return;
                   }
                   updateConfigFormValue(state, ["agents", "list", index, "skills"], []);
+                },
+                onClearMemory: (agentId) => {
+                  if (state.agentMemoryClearing) {
+                    return;
+                  }
+                  const confirmed = window.confirm(
+                    `Delete all saved memory for agent "${agentId}"?\n\nThis will clear session mappings and transcript history for this agent.`,
+                  );
+                  if (!confirmed) {
+                    return;
+                  }
+                  state.agentMemoryClearing = true;
+                  state.agentMemoryClearError = null;
+                  void clearAgentMemory(state, agentId)
+                    .then(async () => {
+                      await loadAgents(state);
+                    })
+                    .catch((err) => {
+                      state.agentMemoryClearError = String(err);
+                    })
+                    .finally(() => {
+                      state.agentMemoryClearing = false;
+                    });
                 },
                 onModelChange: (agentId, modelId) => {
                   if (!configValue) {

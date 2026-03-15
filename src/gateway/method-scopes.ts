@@ -104,6 +104,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "agents.create",
     "agents.update",
     "agents.delete",
+    "agents.memory.clear",
     "skills.install",
     "skills.update",
     "secrets.reload",
